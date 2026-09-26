@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "dev" ]
+
+jobs:
+  lint-and-type:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend deps
+        run: pip install -r backend/requirements.txt
+      - name: Ruff
+        run: cd backend && ruff check app/
+      - name: mypy
+        run: cd backend && mypy app/ --ignore-missing-imports
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install frontend deps
+        run: cd frontend && npm ci
+      - name: ESLint
+        run: cd frontend && npm run lint
+      - name: TypeScript
+        run: cd frontend && npm run type-check
+
+  test-backend:
+    runs-on: ubuntu-latest
+    env:
+      TRIAGE_PROVIDER: simulated
+      DATABASE_URL: sqlite+aiosqlite:///./test.db
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install -r backend/requirements.txt && pip install aiosqlite
+      - name: Run pytest
+        run: cd backend && python -m pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=65
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install deps
+        run: cd frontend && npm ci
+      - name: Test
+        run: cd frontend && npm run test -- --reporter=verbose
+
+  scan:
+    runs-on: ubuntu-latest
+    needs: [lint-and-type, test-backend, test-frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        run: docker build -t civicpulse-backend:test backend/
+      - name: Build frontend image
+        run: docker build -t civicpulse-frontend:test frontend/
+      - name: Run Trivy on backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'civicpulse-backend:test'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+      - name: Run Trivy on frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'civicpulse-frontend:test'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kustomize
+        run: curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash && sudo mv kustomize /usr/local/bin/
+      - name: Install kubeconform
+        run: |
+          wget https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz
+          tar xf kubeconform-linux-amd64.tar.gz
+          sudo mv kubeconform /usr/local/bin/
+      - name: Validate manifests
+        run: kustomize build k8s/overlays/prod | kubeconform -strict -kubernetes-version 1.28.0
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: [lint-and-type, test-backend, test-frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare env
+        run: cp .env.example .env
+      - name: Start services
+        run: docker compose up -d --build
+      - name: Wait for ready
+        run: |
+          timeout 60 bash -c 'until curl -s http://localhost:8000/ready; do sleep 2; done' || true
+      - name: Test POST and GET
+        run: |
+          # Create complaint
+          RES=$(curl -s -X POST http://localhost:8000/api/complaints -H "Content-Type: application/json" -d '{"description": "Test complaint", "location": "123 Main St"}')
+          ID=$(echo $RES | jq -r .id)
+          echo "Created ID: $ID"
+          # Get complaint
+          curl -s -f http://localhost:8000/api/complaints/$ID | grep "category"
+      - name: Test Cache
+        run: |
+          # First request
+          RES1=$(curl -s -I http://localhost:8000/api/stats)
+          echo "$RES1" | grep -i "X-Cache: MISS"
+          # Second request
+          RES2=$(curl -s -I http://localhost:8000/api/stats)
+          echo "$RES2" | grep -i "X-Cache: HIT"
+      - name: Teardown
+        run: docker compose down -v

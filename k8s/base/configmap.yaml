@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: civicpulse-config
+  namespace: civicpulse
+data:
+  TRIAGE_PROVIDER: "simulated"
+  REDIS_URL: "redis://redis:6379/0"
+  DATABASE_URL: "postgresql+asyncpg://civicpulse:$(POSTGRES_PASSWORD)@postgres:5432/civicpulse"
+  OLLAMA_BASE_URL: "http://ollama:11434"
+  GROQ_MODEL: "llama-3.1-8b-instant"
+  LOG_LEVEL: "INFO"
+  RATE_LIMIT_MAX_REQUESTS: "10"
+  RATE_LIMIT_WINDOW_SECONDS: "60"
