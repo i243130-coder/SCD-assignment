@@ -41,7 +41,7 @@ async def create_complaint(
     await check_rate_limit(request, redis)
 
     repo = ComplaintRepository(session)
-    provider = create_triage_provider()
+    provider = create_triage_provider(redis=redis)
     service = ComplaintService(repo, provider)
     stats_svc = StatsService(repo, redis)
 
@@ -104,7 +104,7 @@ async def update_status(
 ) -> ComplaintResponse:
     """Update complaint status. Enforces state machine transitions."""
     repo = ComplaintRepository(session)
-    provider = create_triage_provider()
+    provider = create_triage_provider(redis=redis)
     service = ComplaintService(repo, provider)
     stats_svc = StatsService(repo, redis)
 
