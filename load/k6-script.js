@@ -1,3 +1,5 @@
+// CivicPulse Performance & Load Testing Suite
+// Used for HPA validation (generating concurrent traffic to observe pod scale-out)
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
