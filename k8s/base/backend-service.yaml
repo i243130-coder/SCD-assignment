@@ -3,8 +3,10 @@ kind: Service
 metadata:
   name: backend-service
   namespace: civicpulse
+# Internal ClusterIP service exposing FastAPI backend endpoints
 spec:
   type: ClusterIP
+
   selector:
     app: backend
   ports:
