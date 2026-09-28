@@ -9,7 +9,9 @@ spec:
     kind: Deployment
     name: backend
   updatePolicy:
+    # Recommender mode only to prevent conflicting control loops with HPA on CPU
     updateMode: "Off"
+
   resourcePolicy:
     containerPolicies:
     - containerName: backend
