@@ -1,11 +1,16 @@
 import { ComplaintCreate, ComplaintResponse, ComplaintListResponse, StatsResponse, ProviderInfo, Status } from '../types';
 
+/**
+ * Custom application error encapsulating HTTP status codes and API error messages.
+ * Preserves backend response codes (e.g. 409 status transitions, 429 rate limits).
+ */
 class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
     this.name = 'ApiError';
   }
 }
+
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const response = await fetch(endpoint, {
