@@ -1,8 +1,10 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
+# Persistent storage volume for Redis Append-Only File (AOF) durability
 metadata:
   name: redis-data
   namespace: civicpulse
+
 spec:
   accessModes:
     - ReadWriteOnce
