@@ -36,7 +36,7 @@ docker compose exec backend python -m scripts.seed
 | GET | `/api/complaints/{id}` | Get complaint details |
 
 ## Technology Stack
-- Frontend: React, Vite
+- Frontend: React, Vite , wowowooowoowoowwo
 - Backend: FastAPI, Python, SQLAlchemy, Alembic
 - AI Triage: Groq (LLM), Ollama, Pydantic
 - Database: PostgreSQL
