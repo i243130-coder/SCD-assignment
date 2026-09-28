@@ -70,3 +70,7 @@ Thumbs.db
 
 # Assignment PDF
 *.pdf
+
+/k8s/
+/load/
+/scripts/
