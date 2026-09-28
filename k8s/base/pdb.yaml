@@ -4,6 +4,7 @@ metadata:
   name: backend-pdb
   namespace: civicpulse
 spec:
+  # Guarantees at least 1 backend replica is available during node drains or rolling upgrades
   minAvailable: 1
   selector:
     matchLabels:
