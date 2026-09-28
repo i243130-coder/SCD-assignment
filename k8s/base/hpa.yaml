@@ -19,6 +19,9 @@ spec:
         averageUtilization: 60
   behavior:
     scaleDown:
+      # Stabilize for 5 minutes to avoid rapid replica flapping
       stabilizationWindowSeconds: 300
     scaleUp:
+      # Scale up immediately when CPU load spikes
       stabilizationWindowSeconds: 0
+
