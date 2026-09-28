@@ -5,12 +5,15 @@ metadata:
   namespace: civicpulse
 spec:
   ingressClassName: nginx
+  # Unified host routing: route UI to frontend and API endpoints to backend
   rules:
   - host: civicpulse.local
     http:
       paths:
+      # Static React SPA frontend
       - path: /
         pathType: Prefix
+
         backend:
           service:
             name: frontend-service
