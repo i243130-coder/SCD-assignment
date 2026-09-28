@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "dev", "dev2" ]
+
+jobs:
+  test-frontend:
+    name: test-frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: |
+          if [ -d "frontend" ]; then
+            cd frontend && npm ci
+          else
+            npm ci
+          fi
+
+      - name: Run frontend tests
+        run: |
+          if [ -d "frontend" ]; then
+            cd frontend && npm run test -- --reporter=verbose
+          else
+            npm run test -- --reporter=verbose
+          fi
