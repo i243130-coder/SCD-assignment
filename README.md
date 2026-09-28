@@ -44,7 +44,7 @@ docker compose exec backend python -m scripts.seed
 - Deployment: Docker, Kubernetes
 
 ## Project Structure
-```text
+
 .
 ├── backend/
 ├── frontend/
