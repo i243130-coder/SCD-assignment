@@ -5,9 +5,12 @@ interface Props {
   status: Status | string;
 }
 
+// Visual indicators for complaint lifecycle status:
+// open (green), in_progress (blue), resolved (gray), rejected (red)
 const StatusBadge: React.FC<Props> = ({ status }) => {
-  let color = '#7f8c8d'; // gray
+  let color = '#7f8c8d'; // gray default
   let bgColor = '#f8f9fa';
+
 
   switch (status) {
     case 'open':

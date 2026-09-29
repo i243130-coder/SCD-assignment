@@ -1,5 +1,10 @@
+/** Core complaint domain categories supported by CivicPulse AI triage */
 export type Category = 'water' | 'electricity' | 'sanitation' | 'roads' | 'streetlights' | 'other';
+
+/** Priority levels assigned during automated triage */
 export type Priority = 'high' | 'normal' | 'low';
+
+/** Valid lifecycle statuses in the complaint state machine */
 export type Status = 'open' | 'in_progress' | 'resolved' | 'rejected';
 
 export interface ComplaintCreate {
