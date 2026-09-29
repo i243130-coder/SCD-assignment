@@ -1,8 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
+
+const here = fileURLToPath(new URL('.', import.meta.url))
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  root: here,
   plugins: [react()],
   server: {
     proxy: {
@@ -13,9 +17,9 @@ export default defineConfig({
     }
   },
   test: {
+    root: here,
     environment: 'jsdom',
     globals: true,
-    setupFiles: './tests/setup.ts'
+    setupFiles: [fileURLToPath(new URL('./tests/setup.ts', import.meta.url))]
   }
 } as any)
-
