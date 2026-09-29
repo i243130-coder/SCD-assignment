@@ -20,7 +20,7 @@ describe('StatusBadge', () => {
     // 
     // Once you take the screenshot of the red check & blocked merge button:
     // Change `false` to `true` on the line below to turn the pipeline green!
-    expect(false).toBe(true);
+    expect(true).toBe(true);
   });
 });
 
