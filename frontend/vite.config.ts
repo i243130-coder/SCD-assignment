@@ -1,12 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { fileURLToPath } from 'node:url'
-
-const here = fileURLToPath(new URL('.', import.meta.url))
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  root: here,
   plugins: [react()],
   server: {
     proxy: {
@@ -17,9 +13,10 @@ export default defineConfig({
     }
   },
   test: {
-    root: here,
     environment: 'jsdom',
     globals: true,
-    setupFiles: [fileURLToPath(new URL('./tests/setup.ts', import.meta.url))]
+    // Package specifier (not a file path) so it resolves from node_modules
+    // regardless of the working directory or repo layout.
+    setupFiles: ['@testing-library/jest-dom/vitest']
   }
 } as any)
