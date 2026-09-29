@@ -136,7 +136,7 @@ jobs:
         run: |
           timeout 90 bash -c 'until curl -sf http://localhost:8000/health; do sleep 3; done' || true
       - name: Run migrations
-        run: docker compose exec -T backend alembic upgrade head || true
+        run: docker compose exec -T backend alembic upgrade head
       - name: Test POST and GET
         run: |
           RES=$(curl -s -X POST http://localhost:8000/api/complaints \
@@ -151,6 +151,9 @@ jobs:
         run: |
           curl -s -I http://localhost:8000/api/stats | head -20
           curl -s -I http://localhost:8000/api/stats | head -20
+      - name: Backend logs on failure
+        if: failure()
+        run: docker compose logs backend postgres
       - name: Teardown
         if: always()
         run: docker compose down -v
