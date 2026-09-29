@@ -8,3 +8,6 @@ This folder holds screenshots required for the project rubric (§4 and §5.7):
 4. **`green_pipeline.png`** - Fixed test in the same PR resulting in a green CI check and unlocked merge button.
 5. **`hpa_watch.png`** - `kubectl get hpa -w` terminal capture during load test.
 6. **`scaling_chart.png`** - Chart of replicas against offered load over time.
+7. **`network_isolation.png`** - `docker compose exec frontend ping postgres` (MUST fail).
+8. **`rollback.png`** - Rollback demonstration.
+9. **`quickstart.png`** - Clean clone quickstart working.

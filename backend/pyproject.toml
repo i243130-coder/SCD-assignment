@@ -1,0 +1,39 @@
+[project]
+name = "civicpulse-backend"
+version = "0.1.0"
+description = "CivicPulse municipal complaint intake backend"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM"]
+ignore = ["A003"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["redis.*", "prometheus_client.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/providers/triage/llm.py", "app/providers/triage/ollama.py"]
+
+[tool.coverage.report]
+fail_under = 65
+show_missing = true
+skip_empty = true
