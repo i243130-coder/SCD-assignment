@@ -51,6 +51,9 @@ jobs:
 
   test-frontend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node 22
@@ -58,9 +61,9 @@ jobs:
         with:
           node-version: "22"
       - name: Install deps
-        run: cd frontend && npm ci
+        run: npm ci
       - name: Test
-        run: cd frontend && npm run test -- --reporter=verbose
+        run: npm run test -- --reporter=verbose
 
   scan:
     runs-on: ubuntu-latest
