@@ -23,27 +23,27 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: backend-service
+            name: backend
             port:
               number: 8000
       - path: /health
         pathType: Prefix
         backend:
           service:
-            name: backend-service
+            name: backend
             port:
               number: 8000
       - path: /ready
         pathType: Prefix
         backend:
           service:
-            name: backend-service
+            name: backend
             port:
               number: 8000
       - path: /metrics
         pathType: Prefix
         backend:
           service:
-            name: backend-service
+            name: backend
             port:
               number: 8000

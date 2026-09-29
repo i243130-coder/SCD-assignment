@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: backend-service
+  name: backend
   namespace: civicpulse
 # Internal ClusterIP service exposing FastAPI backend endpoints
 spec:

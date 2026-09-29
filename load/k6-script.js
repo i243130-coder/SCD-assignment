@@ -19,7 +19,7 @@ const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
 export default function () {
   // POST /api/complaints
   const payload = JSON.stringify({
-    description: `Load test complaint ${__VU} ${__ITER}`,
+    text: `Load test complaint ${__VU} ${__ITER}`,
     location: "Test Location",
   });
   
