@@ -31,6 +31,16 @@ spec:
             name: civicpulse-config
         - secretRef:
             name: civicpulse-secret
+        env:
+        # $(VAR) is only expanded inside env[].value, not in ConfigMap values,
+        # so the connection string is assembled here from the Secret.
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: civicpulse-secret
+              key: POSTGRES_PASSWORD
+        - name: DATABASE_URL
+          value: "postgresql+asyncpg://civicpulse:$(POSTGRES_PASSWORD)@postgres:5432/civicpulse"
         startupProbe:
           httpGet:
             path: /health

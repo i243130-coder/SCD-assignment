@@ -19,3 +19,18 @@ patches:
     - op: replace
       path: /spec/replicas
       value: 1
+- target:
+    kind: ConfigMap
+    name: civicpulse-config
+  patch: |-
+    - op: replace
+      path: /data/RATE_LIMIT_MAX_REQUESTS
+      value: "1000000"
+
+images:
+- name: ghcr.io/OWNER/civicpulse-backend
+  newName: civicpulse-backend
+  newTag: dev
+- name: ghcr.io/OWNER/civicpulse-frontend
+  newName: civicpulse-frontend
+  newTag: dev
