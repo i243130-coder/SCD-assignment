@@ -8,7 +8,7 @@ import uuid
 async def test_valid_transition_open_to_in_progress(client: AsyncClient):
     c_id = uuid.uuid4()
     with patch("app.services.complaint_service.ComplaintRepository.get_by_id") as mock_get, \
-         patch("app.services.complaint_service.ComplaintRepository.update") as mock_update:
+         patch("app.services.complaint_service.ComplaintRepository.update_status") as mock_update:
         
         mock_get.return_value = make_complaint(id=c_id, status="open")
         mock_update.return_value = make_complaint(id=c_id, status="in_progress")
@@ -24,7 +24,7 @@ async def test_valid_transition_open_to_in_progress(client: AsyncClient):
 async def test_valid_transition_in_progress_to_resolved(client: AsyncClient):
     c_id = uuid.uuid4()
     with patch("app.services.complaint_service.ComplaintRepository.get_by_id") as mock_get, \
-         patch("app.services.complaint_service.ComplaintRepository.update") as mock_update:
+         patch("app.services.complaint_service.ComplaintRepository.update_status") as mock_update:
         
         mock_get.return_value = make_complaint(id=c_id, status="in_progress")
         mock_update.return_value = make_complaint(id=c_id, status="resolved")

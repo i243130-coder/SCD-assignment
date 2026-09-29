@@ -1,6 +1,7 @@
 """Alembic environment configuration for async PostgreSQL."""
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -12,6 +13,9 @@ from app.models import Complaint  # noqa: F401 — ensure model is registered
 
 # Alembic Config object
 config = context.config
+
+if os.getenv("DATABASE_URL"):
+    config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

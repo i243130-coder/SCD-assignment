@@ -21,3 +21,7 @@ async def test_prompt_injection_does_not_control_classification(client: AsyncCli
         # But here TRIAGE_PROVIDER=simulated, which hashes the content. 
         # The key assertion is just that it successfully processed it (201) and didn't crash.
         assert "category" in data
+        assert data["category"] in ["water", "electricity", "sanitation", "roads", "streetlights", "other"]
+        assert data["priority"] in ["high", "normal", "low"]
+        assert isinstance(data["ai_summary"], str)
+        assert len(data["ai_summary"]) <= 140
