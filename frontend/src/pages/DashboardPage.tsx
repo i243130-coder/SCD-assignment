@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { listComplaints } from '../api/client';
-import { ComplaintResponse, Category, Priority, Status } from '../types';
+import { ComplaintResponse } from '../types';
 import ComplaintList from '../components/ComplaintList';
 import StatsPanel from '../components/StatsPanel';
 

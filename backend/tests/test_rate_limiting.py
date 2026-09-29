@@ -1,31 +1,18 @@
 import pytest
 from httpx import AsyncClient
 from unittest.mock import patch, AsyncMock
+from tests.conftest import make_complaint
 
 @pytest.mark.asyncio
-async def test_rate_limit_allows_within_limit(client: AsyncClient):
-    with patch("tests.conftest.FakeRedis.eval", new_callable=AsyncMock) as mock_eval:
-        mock_eval.return_value = -1  # Allowed
-        
+async def test_rate_limit_allows_within_limit(client: AsyncClient, mock_session):
+    # When redis eval returns -1 (allowed), request proceeds
+    complaint_obj = make_complaint()
+    with patch("app.services.complaint_service.ComplaintRepository.create", return_value=complaint_obj):
         response = await client.post(
             "/api/complaints",
             json={"text": "Water pipe burst loudly", "location": "123 Main"}
         )
-        # Assuming the create works or at least it doesn't fail with 429
-        # In our case, create would try to hit db, but we don't care about the final status as long as it's not 429.
-        # Actually, let's mock create so we get 201
-        with patch("app.services.complaint_service.ComplaintRepository.create") as mock_create:
-            mock_create.return_value = None # it might crash, let's just assert mock_eval was called.
-            
-    # Better approach:
-    with patch("app.middleware.rate_limiter.check_rate_limit", new_callable=AsyncMock) as mock_check:
-        mock_check.return_value = None
-        response = await client.post(
-            "/api/complaints",
-            json={"text": "Water pipe burst loudly", "location": "123 Main"}
-        )
-        mock_check.assert_called_once()
-        # Not a great test if we mock the function itself.
+        assert response.status_code == 201
 
 @pytest.mark.asyncio
 async def test_rate_limit_blocks_over_limit(client: AsyncClient):

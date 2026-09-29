@@ -7,8 +7,14 @@ Running twice must NOT duplicate records (uses deterministic UUIDs).
 """
 
 import asyncio
+import os
+import sys
+from pathlib import Path
 import uuid
 from datetime import datetime, timezone
+
+# Ensure project root/app is importable
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

@@ -36,7 +36,7 @@ async def test_provider_failure_triggers_fallback(client: AsyncClient):
         )
         assert response.status_code == 201
         data = response.json()
-        assert "rules:fallback" in data["triaged_by"] or "rules" in data["triaged_by"] or "fallback" in data["triaged_by"]
+        assert data["triaged_by"] == "rules:fallback"
 
 @pytest.mark.asyncio
 async def test_malformed_output_handled(client: AsyncClient):
