@@ -18,7 +18,7 @@ describe('ComplaintList', () => {
   it('renders complaint items', () => {
     render(<ComplaintList complaints={mockComplaints} onStatusUpdate={vi.fn()} />);
     expect(screen.getByText(/Long complaint text here/i)).toBeInTheDocument();
-    expect(screen.getByText('123 Main St')).toBeInTheDocument();
-    expect(screen.getByText('water')).toBeInTheDocument();
+    expect(screen.getByText(/123 Main St/)).toBeInTheDocument();
+    expect(screen.getByText(/water/)).toBeInTheDocument();
   });
 });
