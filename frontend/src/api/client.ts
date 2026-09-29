@@ -19,10 +19,15 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
   if (!response.ok) {
     let message = 'API Error';
     try {
-      const data = await response.json();
-      message = data.detail || message;
+      const text = await response.text();
+      try {
+        const data = JSON.parse(text);
+        message = data.detail || message;
+      } catch {
+        message = text || message;
+      }
     } catch {
-      message = await response.text() || message;
+      // ignore read errors
     }
     throw new ApiError(response.status, message);
   }
