@@ -13,25 +13,25 @@ resources:
 - migrate-job.yaml
 
 patches:
-- target:
-    kind: Ingress
-    name: civicpulse-ingress
-  patch: |-
+- patch: |-
     - op: replace
       path: /spec/ingressClassName
       value: traefik
-- target:
-    kind: ConfigMap
-    name: civicpulse-config
-  patch: |-
+  target:
+    kind: Ingress
+    name: civicpulse-ingress
+- patch: |-
     - op: add
       path: /data/OTEL_EXPORTER_OTLP_ENDPOINT
       value: "http://jaeger.observability.svc.cluster.local:4318"
+  target:
+    kind: ConfigMap
+    name: civicpulse-config
 
 images:
-- name: ghcr.io/OWNER/civicpulse-backend
+- digest: sha256:f96f90c481f12817e7f6e2d92c39e080dc58da502a7f00cacb23448a6f033c38
+  name: ghcr.io/OWNER/civicpulse-backend
   newName: ghcr.io/i243130-coder/civicpulse-backend
-  newTag: 6355c0a984a9959931bc9d39cae504f8d3ed31aa
-- name: ghcr.io/OWNER/civicpulse-frontend
+- digest: sha256:b355cdca377eab5da8dfb6f14a53807fc8f634611cb46d82e2517277ab0f5f76
+  name: ghcr.io/OWNER/civicpulse-frontend
   newName: ghcr.io/i243130-coder/civicpulse-frontend
-  newTag: 6355c0a984a9959931bc9d39cae504f8d3ed31aa
