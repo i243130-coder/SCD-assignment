@@ -49,6 +49,7 @@ services:
       - REDIS_URL=${REDIS_URL}
       - TRIAGE_PROVIDER=${TRIAGE_PROVIDER}
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     restart: unless-stopped
     deploy:
       resources:

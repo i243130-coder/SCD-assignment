@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Observability stack for the bonus items:
+#   Prometheus  - scrapes /metrics on every backend pod (pod discovery)
+#   Grafana     - provisioned Prometheus + Jaeger datasources and the
+#                 "CivicPulse - Backend" dashboard
+#   Jaeger      - receives OTLP traces from frontend and backend
+# Apply with `kubectl apply -k k8s/observability`, or let Argo CD do it
+# (k8s/argocd/observability-application.yaml).
+namespace: observability
+
+resources:
+- namespace.yaml
+- prometheus.yaml
+- grafana.yaml
+- jaeger.yaml
+
+configMapGenerator:
+- name: prometheus-config
+  files:
+  - prometheus.yml
+- name: grafana-provisioning-datasources
+  files:
+  - grafana/datasources.yaml
+- name: grafana-provisioning-dashboards
+  files:
+  - grafana/dashboards.yaml
+- name: grafana-dashboard-civicpulse
+  files:
+  - grafana/civicpulse-dashboard.json

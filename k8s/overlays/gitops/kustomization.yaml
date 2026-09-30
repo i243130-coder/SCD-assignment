@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# GitOps environment - reconciled by Argo CD (k8s/argocd/application.yaml)
+# from the deploy/gitops branch. Nobody runs `kubectl apply` against it.
+#
+# The `images:` block below is rewritten by the promote-gitops job in
+# .github/workflows/cd.yml with the *digests* of the images that job just
+# verified with Cosign. On main it holds the last known-good SHA tag; on
+# deploy/gitops it always holds sha256 digests.
+resources:
+- ../prod
+- migrate-job.yaml
+
+patches:
+- target:
+    kind: Ingress
+    name: civicpulse-ingress
+  patch: |-
+    - op: replace
+      path: /spec/ingressClassName
+      value: traefik
+- target:
+    kind: ConfigMap
+    name: civicpulse-config
+  patch: |-
+    - op: add
+      path: /data/OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://jaeger.observability.svc.cluster.local:4318"
+
+images:
+- name: ghcr.io/OWNER/civicpulse-backend
+  newName: ghcr.io/i243130-coder/civicpulse-backend
+  newTag: 6355c0a984a9959931bc9d39cae504f8d3ed31aa
+- name: ghcr.io/OWNER/civicpulse-frontend
+  newName: ghcr.io/i243130-coder/civicpulse-frontend
+  newTag: 6355c0a984a9959931bc9d39cae504f8d3ed31aa

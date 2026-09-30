@@ -12,7 +12,8 @@ from app.config import settings
 from app.metrics import REQUEST_COUNT, REQUEST_LATENCY
 from app.middleware.request_id import RequestIDMiddleware
 from app.redis_client import close_redis, init_redis
-from app.routes import complaints, health, meta, stats
+from app.routes import complaints, health, meta, stats, telemetry
+from app.tracing import setup_tracing, shutdown_tracing
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
     logger.info("Shutting down CivicPulse backend")
     await close_redis()
+    shutdown_tracing()
 
 
 app = FastAPI(
@@ -37,6 +39,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# OpenTelemetry (no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set).
+setup_tracing(app)
 
 # ── Middleware ────────────────────────────────────────────────
 app.add_middleware(
@@ -71,3 +76,4 @@ app.include_router(complaints.router)
 app.include_router(stats.router)
 app.include_router(meta.router)
 app.include_router(health.router)
+app.include_router(telemetry.router)
