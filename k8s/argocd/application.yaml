@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: civicpulse
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/i243130-coder/SCD-assignment.git
+    # Written only by the promote-gitops job in cd.yml, with Cosign-verified
+    # image digests. Rollback = `git revert` the deploy commit on this branch.
+    targetRevision: deploy/gitops
+    path: k8s/overlays/gitops
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: civicpulse
+  syncPolicy:
+    automated:
+      prune: true      # delete what was removed from Git
+      selfHeal: true   # undo manual kubectl edits (drift)
+    syncOptions:
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+  # The HPA owns the backend replica count; Git must not fight it.
+  - group: apps
+    kind: Deployment
+    name: backend
+    jsonPointers:
+    - /spec/replicas
+  # Real credentials (e.g. GROQ_API_KEY) are set in-cluster, never in Git.
+  # Argo CD leaves the Secret's data alone after the first sync.
+  - kind: Secret
+    name: civicpulse-secret
+    jsonPointers:
+    - /data

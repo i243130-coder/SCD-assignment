@@ -4,6 +4,17 @@ on:
   push:
     branches: [ "main" ]
 
+# Least privilege by default; jobs that need more ask for it explicitly.
+permissions:
+  contents: read
+
+# (The `env` context is not available in job-level `env:` blocks, so the
+# deploy/promote jobs build image references from github.repository_owner.)
+env:
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+  KUSTOMIZE_VERSION: v5.8.1
+  VPA_VERSION: vertical-pod-autoscaler-1.8.0
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -12,10 +23,10 @@ jobs:
       DATABASE_URL: sqlite+aiosqlite:///./test.db
       REDIS_URL: redis://localhost:6379/0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - name: Install backend deps
@@ -24,7 +35,7 @@ jobs:
         run: cd backend && python -m pytest tests/ -v
 
       - name: Setup Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
       - name: Install frontend deps
@@ -34,75 +45,188 @@ jobs:
         working-directory: frontend
         run: npm run test -- --reporter=verbose
 
+  # Build once, push, and sign by digest. The digest (not a tag) is the
+  # identity of the artefact from here on.
   build-push:
     needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write   # keyless Cosign signing via GitHub OIDC
+    outputs:
+      backend-digest: ${{ steps.backend.outputs.digest }}
+      frontend-digest: ${{ steps.frontend.outputs.digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
       - name: Build and push backend
-        uses: docker/build-push-action@v5
+        id: backend
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: ./backend
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/civicpulse-backend:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/civicpulse-backend:latest
+            ${{ env.REGISTRY }}/civicpulse-backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/civicpulse-backend:latest
       - name: Generate SBOM for backend
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
-          image: ghcr.io/${{ github.repository_owner }}/civicpulse-backend:${{ github.sha }}
+          image: ${{ env.REGISTRY }}/civicpulse-backend@${{ steps.backend.outputs.digest }}
 
       - name: Build and push frontend
-        uses: docker/build-push-action@v5
+        id: frontend
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: ./frontend
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/civicpulse-frontend:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/civicpulse-frontend:latest
+            ${{ env.REGISTRY }}/civicpulse-frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/civicpulse-frontend:latest
       - name: Generate SBOM for frontend
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
-          image: ghcr.io/${{ github.repository_owner }}/civicpulse-frontend:${{ github.sha }}
+          image: ${{ env.REGISTRY }}/civicpulse-frontend@${{ steps.frontend.outputs.digest }}
 
+      - name: Sign images by digest (keyless Cosign)
+        env:
+          BACKEND: ${{ env.REGISTRY }}/civicpulse-backend@${{ steps.backend.outputs.digest }}
+          FRONTEND: ${{ env.REGISTRY }}/civicpulse-frontend@${{ steps.frontend.outputs.digest }}
+        run: |
+          cosign sign --yes "$BACKEND"
+          cosign sign --yes "$FRONTEND"
+
+      - name: Record what was built
+        run: |
+          {
+            echo "### Images built and signed"
+            echo "| Image | Digest |"
+            echo "|---|---|"
+            echo "| civicpulse-backend | \`${{ steps.backend.outputs.digest }}\` |"
+            echo "| civicpulse-frontend | \`${{ steps.frontend.outputs.digest }}\` |"
+            echo ""
+            echo "Source commit: \`${{ github.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Refuse to deploy anything whose signature does not verify, then deploy by
+  # digest into an ephemeral kind cluster and smoke-test it.
   deploy-k8s:
     needs: build-push
     runs-on: ubuntu-latest
+    env:
+      BACKEND: ${{ format('ghcr.io/{0}/civicpulse-backend@{1}', github.repository_owner, needs.build-push.outputs.backend-digest) }}
+      FRONTEND: ${{ format('ghcr.io/{0}/civicpulse-frontend@{1}', github.repository_owner, needs.build-push.outputs.frontend-digest) }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Create kind cluster
-        uses: helm/kind-action@v1
-      - name: Install kustomize
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+      - name: Verify image signatures
+        env:
+          IDENTITY: ${{ github.server_url }}/${{ github.workflow_ref }}
         run: |
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          for image in "$BACKEND" "$FRONTEND"; do
+            cosign verify "$image" \
+              --certificate-identity "$IDENTITY" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              > /dev/null
+            echo "verified: $image"
+          done
+      - name: Create kind cluster
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+      - name: Install kustomize (pinned release)
+        run: |
+          curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz
           sudo mv kustomize /usr/local/bin/
-      - name: Update image tags
+      - name: Install VPA CRD (the base declares a VerticalPodAutoscaler)
+        run: kubectl apply -f "https://raw.githubusercontent.com/kubernetes/autoscaler/${VPA_VERSION}/vertical-pod-autoscaler/deploy/vpa-v1-crd-gen.yaml"
+      - name: Pin images by digest
         run: |
           cd k8s/overlays/prod
-          kustomize edit set image ghcr.io/OWNER/civicpulse-backend=ghcr.io/${{ github.repository_owner }}/civicpulse-backend:${{ github.sha }}
-          kustomize edit set image ghcr.io/OWNER/civicpulse-frontend=ghcr.io/${{ github.repository_owner }}/civicpulse-frontend:${{ github.sha }}
+          kustomize edit set image "ghcr.io/OWNER/civicpulse-backend=$BACKEND"
+          kustomize edit set image "ghcr.io/OWNER/civicpulse-frontend=$FRONTEND"
+          kustomize build . | grep -E '^\s+image: ' | sort -u
       - name: Apply manifests
-        run: |
-          kustomize build k8s/overlays/prod | kubectl apply -f - || true
+        run: kustomize build k8s/overlays/prod | kubectl apply -f -
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/backend -n civicpulse --timeout=120s || true
+          kubectl rollout status statefulset/postgres -n civicpulse --timeout=240s
+          kubectl rollout status deployment/backend -n civicpulse --timeout=240s
+          kubectl rollout status deployment/frontend -n civicpulse --timeout=240s
       - name: Smoke test
         run: |
           kubectl port-forward svc/backend -n civicpulse 8000:8000 &
-          sleep 5
-          curl -s http://localhost:8000/health || true
-      - name: Print HPA
-        run: kubectl get hpa -n civicpulse || true
+          for i in $(seq 1 20); do curl -sf http://localhost:8000/health && break; sleep 2; done
+          curl -sf http://localhost:8000/health
+          curl -sf http://localhost:8000/ready
+      - name: Show what is running
+        if: always()
+        run: |
+          kubectl get pods -n civicpulse -o wide
+          kubectl get deploy -n civicpulse -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.template.spec.containers[0].image}{"\n"}{end}'
+          kubectl get hpa -n civicpulse
+
+  # GitOps promotion: write the verified digests to the deploy/gitops branch.
+  # Argo CD watches that branch and reconciles the cluster from it, so every
+  # production change is a commit you can `git show` and `git revert`.
+  # main itself is never pushed to.
+  promote-gitops:
+    needs: [build-push, deploy-k8s]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      BACKEND: ${{ format('ghcr.io/{0}/civicpulse-backend@{1}', github.repository_owner, needs.build-push.outputs.backend-digest) }}
+      FRONTEND: ${{ format('ghcr.io/{0}/civicpulse-frontend@{1}', github.repository_owner, needs.build-push.outputs.frontend-digest) }}
+      DEPLOY_BRANCH: deploy/gitops
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Install kustomize (pinned release)
+        run: |
+          curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz
+          sudo mv kustomize /usr/local/bin/
+      - name: Bring deploy branch up to date with main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin "$DEPLOY_BRANCH" > /dev/null; then
+            git checkout -B "$DEPLOY_BRANCH" "origin/$DEPLOY_BRANCH"
+            git merge --no-edit -X theirs "origin/main"
+          else
+            git checkout -B "$DEPLOY_BRANCH" "origin/main"
+          fi
+      - name: Pin digests in the GitOps overlay
+        run: |
+          cd k8s/overlays/gitops
+          kustomize edit set image "ghcr.io/OWNER/civicpulse-backend=$BACKEND"
+          kustomize edit set image "ghcr.io/OWNER/civicpulse-frontend=$FRONTEND"
+          kustomize build . > /dev/null
+      - name: Commit and push the promotion
+        run: |
+          git add k8s/overlays/gitops/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "Digests unchanged - nothing to promote."
+            exit 0
+          fi
+          git commit -m "deploy: ${GITHUB_SHA::7} to gitops" \
+                     -m "backend:  $BACKEND" \
+                     -m "frontend: $FRONTEND" \
+                     -m "source: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          git push origin "HEAD:$DEPLOY_BRANCH"
+          {
+            echo "### Promoted to \`$DEPLOY_BRANCH\`"
+            echo "Argo CD will sync these digests:"
+            echo "- \`$BACKEND\`"
+            echo "- \`$FRONTEND\`"
+          } >> "$GITHUB_STEP_SUMMARY"

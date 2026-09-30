@@ -1,4 +1,5 @@
 import { ComplaintCreate, ComplaintResponse, ComplaintListResponse, StatsResponse, ProviderInfo, Status } from '../types';
+import { tracedFetch } from '../tracing';
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -8,7 +9,8 @@ class ApiError extends Error {
 }
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(endpoint, {
+  // tracedFetch = fetch + W3C traceparent, so the backend continues the browser's trace.
+  const response = await tracedFetch(endpoint, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -69,7 +71,7 @@ export const updateStatus = (id: string, status: Status): Promise<ComplaintRespo
   });
 
 export const getStats = async (): Promise<{ data: StatsResponse; cacheStatus: string | null }> => {
-  const response = await fetch('/api/stats');
+  const response = await tracedFetch('/api/stats');
   if (!response.ok) {
     throw new ApiError(response.status, 'Failed to fetch stats');
   }

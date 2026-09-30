@@ -31,5 +31,11 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "development"
 
+    # Tracing (OpenTelemetry). Empty = tracing disabled (the default, and what
+    # CI uses, so tests stay deterministic). Base URL of an OTLP/HTTP receiver,
+    # e.g. http://jaeger.observability.svc.cluster.local:4318
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
+    OTEL_SERVICE_NAME: str = "civicpulse-backend"
+
 
 settings = Settings()

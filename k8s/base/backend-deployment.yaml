@@ -7,6 +7,9 @@ metadata:
     app: backend
 spec:
   replicas: 2
+  # A new pod must stay Ready for 5 s before the rollout counts it as
+  # available and moves on, which keeps a flapping pod out of rotation.
+  minReadySeconds: 5
   selector:
     matchLabels:
       app: backend
@@ -19,6 +22,11 @@ spec:
     metadata:
       labels:
         app: backend
+      annotations:
+        # Picked up by the Prometheus in k8s/observability (pod discovery).
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
     spec:
       terminationGracePeriodSeconds: 30
       containers:
@@ -67,6 +75,9 @@ spec:
             cpu: 500m
             memory: 512Mi
         lifecycle:
+          # Zero-downtime: keep serving for 5 s after the pod is marked
+          # Terminating, so kube-proxy and the ingress drop it from their
+          # endpoints before uvicorn stops accepting connections.
           preStop:
             exec:
               command: ["sh", "-c", "sleep 5"]

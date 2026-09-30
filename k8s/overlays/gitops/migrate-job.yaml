@@ -1,0 +1,45 @@
+# Schema migrations as an Argo CD Sync hook. Sync wave 1 runs after every
+# wave-0 resource (postgres, backend, ...) is healthy, and the hook is
+# recreated on each sync, so a new image digest always migrates before it is
+# considered deployed.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backend-migrate
+  namespace: civicpulse
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: backend-migrate
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: migrate
+        image: ghcr.io/OWNER/civicpulse-backend:PLACEHOLDER
+        command: ["alembic", "upgrade", "head"]
+        envFrom:
+        - configMapRef:
+            name: civicpulse-config
+        - secretRef:
+            name: civicpulse-secret
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: civicpulse-secret
+              key: POSTGRES_PASSWORD
+        - name: DATABASE_URL
+          value: "postgresql+asyncpg://civicpulse:$(POSTGRES_PASSWORD)@postgres:5432/civicpulse"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi

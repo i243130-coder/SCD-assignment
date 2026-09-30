@@ -26,6 +26,20 @@ patches:
     - op: replace
       path: /data/RATE_LIMIT_MAX_REQUESTS
       value: "1000000"
+    # OpenTelemetry: export traces to the Jaeger in k8s/observability.
+    # Unset (as in base) means tracing is off.
+    - op: add
+      path: /data/OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://jaeger.observability.svc.cluster.local:4318"
+# k3d ships Traefik, not ingress-nginx. Routing through the Ingress (not a
+# port-forward to one pod) is what makes the zero-downtime rollout test valid.
+- target:
+    kind: Ingress
+    name: civicpulse-ingress
+  patch: |-
+    - op: replace
+      path: /spec/ingressClassName
+      value: traefik
 
 images:
 - name: ghcr.io/OWNER/civicpulse-backend

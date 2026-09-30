@@ -11,8 +11,10 @@ from app.providers.triage.base import TriageProvider, TriageResult
 from app.providers.triage.rules import RuleBasedTriage
 from app.repositories.complaint_repo import ComplaintRepository
 from app.schemas import ComplaintCreate
+from app.tracing import get_tracer
 
 logger = logging.getLogger(__name__)
+tracer = get_tracer("civicpulse.triage")
 
 # ── Explicit State Machine Transition Table ──────────────────
 # Assignment requirement: "implement as an explicit transition table,
@@ -93,18 +95,30 @@ class ComplaintService:
         self, text: str, location: str
     ) -> tuple[TriageResult, str]:
         """Try the configured provider; fall back to rules on any failure."""
-        try:
-            result = await self.triage_provider.triage(text, location)
-            return result, self.triage_provider.name
-        except Exception:
-            logger.warning(
-                "Triage provider '%s' failed, falling back to rules",
-                self.triage_provider.name,
-                exc_info=True,
-            )
-            FALLBACK_COUNTER.inc()
-            result = await self._fallback.triage(text, location)
-            return result, "rules:fallback"
+        # One span per triage, so a trace shows which provider answered and
+        # whether the fallback path was taken. Complaint text is never put on
+        # the span (PII - see ADR-0004).
+        with tracer.start_as_current_span("triage") as span:
+            span.set_attribute("triage.provider", self.triage_provider.name)
+            try:
+                result = await self.triage_provider.triage(text, location)
+                triaged_by = self.triage_provider.name
+                span.set_attribute("triage.fallback", False)
+            except Exception as exc:
+                logger.warning(
+                    "Triage provider '%s' failed, falling back to rules",
+                    self.triage_provider.name,
+                    exc_info=True,
+                )
+                span.record_exception(exc)
+                span.set_attribute("triage.fallback", True)
+                FALLBACK_COUNTER.inc()
+                result = await self._fallback.triage(text, location)
+                triaged_by = "rules:fallback"
+            span.set_attribute("triage.triaged_by", triaged_by)
+            span.set_attribute("triage.category", result.category.value)
+            span.set_attribute("triage.priority", result.priority.value)
+            return result, triaged_by
 
     async def get_complaint(self, complaint_id: UUID) -> Complaint:
         """Fetch a single complaint or raise."""

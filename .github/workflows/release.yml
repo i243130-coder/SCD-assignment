@@ -5,45 +5,65 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
+      id-token: write   # keyless Cosign signing
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
     steps:
-      - uses: actions/checkout@v4
-      
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
       - name: Build and push backend
-        uses: docker/build-push-action@v5
+        id: backend
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: ./backend
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/civicpulse-backend:${{ github.ref_name }}
-          
+          tags: ${{ env.REGISTRY }}/civicpulse-backend:${{ github.ref_name }}
+
       - name: Build and push frontend
-        uses: docker/build-push-action@v5
+        id: frontend
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: ./frontend
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/civicpulse-frontend:${{ github.ref_name }}
-          
+          tags: ${{ env.REGISTRY }}/civicpulse-frontend:${{ github.ref_name }}
+
+      - name: Sign release images by digest
+        run: |
+          cosign sign --yes "${REGISTRY}/civicpulse-backend@${{ steps.backend.outputs.digest }}"
+          cosign sign --yes "${REGISTRY}/civicpulse-frontend@${{ steps.frontend.outputs.digest }}"
+
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
-          image: ghcr.io/${{ github.repository_owner }}/civicpulse-backend:${{ github.ref_name }}
-          
+          image: ${{ env.REGISTRY }}/civicpulse-backend@${{ steps.backend.outputs.digest }}
+
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           generate_release_notes: true
+          body: |
+            Images (pinned by digest, signed with Cosign):
+            - `${{ env.REGISTRY }}/civicpulse-backend@${{ steps.backend.outputs.digest }}`
+            - `${{ env.REGISTRY }}/civicpulse-frontend@${{ steps.frontend.outputs.digest }}`

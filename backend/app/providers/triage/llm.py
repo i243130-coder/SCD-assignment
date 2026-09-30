@@ -18,11 +18,14 @@ import random
 
 import httpx
 from openai import APIError, APITimeoutError, AsyncOpenAI, RateLimitError
+from opentelemetry.trace import SpanKind
 
 from app.config import settings
 from app.providers.triage.base import TriageProvider, TriageResult
+from app.tracing import get_tracer
 
 logger = logging.getLogger(__name__)
+tracer = get_tracer("civicpulse.llm")
 
 # ── Prompt Design ────────────────────────────────────────────────
 # Complaint text is UNTRUSTED DATA.  We delimit it with XML-style
@@ -141,16 +144,29 @@ class LLMTriage(TriageProvider):
         """Make a single LLM API call and validate the response."""
         user_prompt = USER_PROMPT_TEMPLATE.format(text=text, location=location)
 
-        response = await self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.1,  # low temperature for consistent classification
-            max_tokens=256,
-        )
+        # GenAI semantic-convention attributes; prompt and completion text are
+        # deliberately NOT recorded (PII). The HTTP request to Groq appears as
+        # a child span via the httpx instrumentation.
+        with tracer.start_as_current_span("llm.chat_completion", kind=SpanKind.CLIENT) as span:
+            span.set_attribute("gen_ai.system", "groq")
+            span.set_attribute("gen_ai.operation.name", "chat")
+            span.set_attribute("gen_ai.request.model", self._model)
+            span.set_attribute("gen_ai.request.temperature", 0.1)
+            span.set_attribute("gen_ai.request.max_tokens", 256)
+            response = await self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1,  # low temperature for consistent classification
+                max_tokens=256,
+            )
+            if response.usage is not None:
+                span.set_attribute("gen_ai.usage.input_tokens", response.usage.prompt_tokens)
+                span.set_attribute("gen_ai.usage.output_tokens", response.usage.completion_tokens)
+            span.set_attribute("gen_ai.response.model", response.model)
 
         content = response.choices[0].message.content
         if not content:
